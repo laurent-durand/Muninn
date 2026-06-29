@@ -1,0 +1,133 @@
+syntax = "proto3";
+package muninn.v1;
+
+option go_package = "github.com/XIIIXXXIII/muninn/api/proto";
+
+// ─── Metrics ────────────────────────────────────────────────────────────────
+
+message MetricSnapshot {
+  int64            timestamp_ms = 1;
+  CpuStats         cpu          = 2;
+  MemStats         mem          = 3;
+  repeated DiskStats   disks    = 4;
+  repeated NetStats    ifaces   = 5;
+  repeated ProcEntry   procs    = 6;
+  LoadAvg          load         = 7;
+}
+
+message CpuStats {
+  double user_pct         = 1;
+  double system_pct       = 2;
+  double idle_pct         = 3;
+  double iowait_pct       = 4;
+  double steal_pct        = 5;
+  repeated double per_core_pct = 6;
+  uint32 num_cores        = 7;
+  double freq_mhz         = 8;
+}
+
+message MemStats {
+  uint64 total_kb         = 1;
+  uint64 used_kb          = 2;
+  uint64 free_kb          = 3;
+  uint64 available_kb     = 4;
+  uint64 cached_kb        = 5;
+  uint64 buffers_kb       = 6;
+  uint64 swap_total_kb    = 7;
+  uint64 swap_used_kb     = 8;
+  uint64 swap_free_kb     = 9;
+  uint64 slab_kb          = 10;
+}
+
+message DiskStats {
+  string device           = 1;
+  string mountpoint       = 2;
+  string fstype           = 3;
+  uint64 total_kb         = 4;
+  uint64 used_kb          = 5;
+  uint64 inodes_total     = 6;
+  uint64 inodes_used      = 7;
+  uint64 reads_completed  = 8;
+  uint64 writes_completed = 9;
+  uint64 read_bytes       = 10;
+  uint64 write_bytes      = 11;
+  double read_latency_ms  = 12;
+  double write_latency_ms = 13;
+}
+
+message NetStats {
+  string iface            = 1;
+  uint64 rx_bytes         = 2;
+  uint64 tx_bytes         = 3;
+  uint64 rx_packets       = 4;
+  uint64 tx_packets       = 5;
+  uint64 rx_errors        = 6;
+  uint64 tx_errors        = 7;
+  uint64 rx_dropped       = 8;
+  uint64 tx_dropped       = 9;
+  double rx_bps           = 10;
+  double tx_bps           = 11;
+}
+
+message ProcEntry {
+  int32  pid              = 1;
+  int32  ppid             = 2;
+  string name             = 3;
+  string cmdline          = 4;
+  string state            = 5;
+  double cpu_pct          = 6;
+  uint64 rss_kb           = 7;
+  uint64 vsz_kb           = 8;
+  uint32 threads          = 9;
+  int32  nice             = 10;
+  string user             = 11;
+  uint64 open_fds         = 12;
+}
+
+message LoadAvg {
+  double one   = 1;
+  double five  = 2;
+  double fifteen = 3;
+}
+
+// ─── Alerts ──────────────────────────────────────────────────────────────────
+
+message Alert {
+  string   id         = 1;
+  string   rule_name  = 2;
+  Severity severity   = 3;
+  string   message    = 4;
+  int64    fired_at   = 5;
+  int64    resolved_at = 6;
+  map<string, string> labels = 7;
+}
+
+enum Severity {
+  SEVERITY_UNSPECIFIED = 0;
+  INFO                 = 1;
+  WARN                 = 2;
+  CRIT                 = 3;
+  DEAD                 = 4;
+}
+
+// ─── API ─────────────────────────────────────────────────────────────────────
+
+service MuninService {
+  rpc StreamMetrics (StreamRequest) returns (stream MetricSnapshot);
+  rpc GetSnapshot   (SnapshotRequest) returns (MetricSnapshot);
+  rpc ListAlerts    (AlertsRequest)   returns (AlertsResponse);
+  rpc GetHistory    (HistoryRequest)  returns (HistoryResponse);
+}
+
+message StreamRequest  { uint32 interval_ms = 1; }
+message SnapshotRequest {}
+message AlertsRequest  { bool active_only = 1; }
+message AlertsResponse { repeated Alert alerts = 1; }
+message HistoryRequest {
+  string metric    = 1;
+  int64  from_ms   = 2;
+  int64  to_ms     = 3;
+  uint32 max_points = 4;
+}
+message HistoryResponse { repeated DataPoint points = 1; }
+message DataPoint { int64 ts = 1; double value = 2; }

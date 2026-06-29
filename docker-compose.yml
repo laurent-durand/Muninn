@@ -1,0 +1,174 @@
+version: "3.9"
+
+# ─── Muninn — polyglot system monitor ────────────────────────────────────────
+# All services communicate via:
+#   • NATS for pub/sub metric distribution
+#   • Unix pipes (core → api)
+#   • HTTP REST/WebSocket (api → tui, shell clients)
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+
+  # ── NATS message broker ──────────────────────────────────────────────────────
+  nats:
+    image: nats:2.10-alpine
+    ports:
+      - "4222:4222"
+      - "8222:8222"   # monitoring HTTP
+    command: ["--jetstream", "--http_port", "8222"]
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "4222"]
+      interval: 5s
+      retries: 5
+    logging: *default-logging
+
+  # ── Core metrics daemon (Zig) ─────────────────────────────────────────────
+  core:
+    build:
+      context: src/core
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    pid: host           # needs host PID ns to read /proc
+    volumes:
+      - /proc:/proc:ro
+      - /sys:/sys:ro
+      - /run/muninn:/run/muninn
+    depends_on:
+      nats: { condition: service_healthy }
+    logging: *default-logging
+
+  # ── Network monitor (Rust) ────────────────────────────────────────────────
+  net:
+    build:
+      context: src/net
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    network_mode: host    # needs host net ns for /proc/net/dev
+    volumes:
+      - /proc/net:/proc/net:ro
+    logging: *default-logging
+
+  # ── Central broker + HTTP API (Go) ───────────────────────────────────────
+  api:
+    build:
+      context: src/api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "7777:7777"
+    environment:
+      MUNINN_NATS_URL: "nats://nats:4222"
+    depends_on:
+      - nats
+      - core
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7777/healthz"]
+      interval: 10s
+      retries: 5
+    logging: *default-logging
+
+  # ── Config + alert engine (Nim) ───────────────────────────────────────────
+  config:
+    build:
+      context: src/config
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    volumes:
+      - ./muninn.toml:/etc/muninn/muninn.toml:ro
+    environment:
+      MUNINN_API_URL: "http://api:7777"
+    depends_on:
+      api: { condition: service_healthy }
+    logging: *default-logging
+
+  # ── Alert rule engine (OCaml) ─────────────────────────────────────────────
+  rules:
+    build:
+      context: src/rules
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - nats
+    logging: *default-logging
+
+  # ── Statistical analysis (D) ──────────────────────────────────────────────
+  stats:
+    build:
+      context: src/stats
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ── Log aggregator (Crystal) ──────────────────────────────────────────────
+  logs:
+    build:
+      context: src/logs
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    volumes:
+      - /var/log:/var/log:ro
+    logging: *default-logging
+
+  # ── Process tree (Hare) ───────────────────────────────────────────────────
+  syscall:
+    build:
+      context: src/syscall
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    pid: host
+    volumes:
+      - /proc:/proc:ro
+    logging: *default-logging
+
+  # ── BEAM fan-out (Gleam/Erlang) ───────────────────────────────────────────
+  fanout:
+    build:
+      context: src/fanout
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - nats
+    logging: *default-logging
+
+  # ── Watchdog supervisor (Ada) ─────────────────────────────────────────────
+  watchdog:
+    build:
+      context: src/watchdog
+      dockerfile: Dockerfile
+    restart: always    # watchdog must always restart
+    volumes:
+      - /run/muninn:/run/muninn
+    logging: *default-logging
+
+  # ── Metric pipeline / middleware (Koka) ───────────────────────────────────
+  pipeline:
+    build:
+      context: src/fx
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ── Parallel aggregator (Chapel) ─────────────────────────────────────────
+  parallel:
+    build:
+      context: src/parallel
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ── Julia analysis (optional, heavy) ─────────────────────────────────────
+  julia:
+    build:
+      context: src/julia_layer
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    profiles: ["analysis"]    # opt-in: docker compose --profile analysis up
+    logging: *default-logging
+
+volumes:
+  muninn-run:

@@ -1,0 +1,143 @@
+// src/grain_wasm/plugin.gr
+// Muninn WASM plugin — Grain.
+// Grain is a functional language that compiles to WebAssembly.
+// This plugin runs in the same WASM sandbox as MoonBit plugins but
+// provides a more expressive functional interface for metric transforms.
+
+module MuninnPlugin
+
+from "list"    use List
+from "array"   use Array
+from "option"  use Option, { unwrapWithDefault }
+from "result"  use Result
+from "float64" use Float64
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+record Snapshot {
+  timestampMs: Int64,
+  cpuPct:      Float64,
+  memTotalKb:  Int64,
+  memAvailKb:  Int64,
+  loadOne:     Float64,
+}
+
+record Stats {
+  mean:   Float64,
+  stddev: Float64,
+  p50:    Float64,
+  p90:    Float64,
+  p99:    Float64,
+}
+
+// ─── Statistics ───────────────────────────────────────────────────────────────
+
+let mean = (xs: List<Float64>) => {
+  let n = List.length(xs)
+  if (n == 0) {
+    0.0
+  } else {
+    let sum = List.reduce((acc, x) => acc +. x, 0.0, xs)
+    sum /. Float64.fromInt(n)
+  }
+}
+
+let variance = (xs: List<Float64>) => {
+  let mu = mean(xs)
+  let n  = List.length(xs)
+  if (n == 0) {
+    0.0
+  } else {
+    let sum_sq = List.reduce((acc, x) => {
+      let d = x -. mu
+      acc +. d *. d
+    }, 0.0, xs)
+    sum_sq /. Float64.fromInt(n)
+  }
+}
+
+let stddev = (xs: List<Float64>) => Float64.sqrt(variance(xs))
+
+let percentile = (xs: List<Float64>, p: Float64) => {
+  let sorted = List.sort(compare, xs)
+  let n      = List.length(sorted)
+  if (n == 0) {
+    0.0
+  } else {
+    let idx_f = p /. 100.0 *. Float64.fromInt(n - 1)
+    let lo    = Int64.toInt(Float64.toInt64(Float64.floor(idx_f)))
+    let hi    = min(lo + 1, n - 1)
+    let frac  = idx_f -. Float64.floor(idx_f)
+    let vlo   = Option.unwrap(List.nth(lo, sorted))
+    let vhi   = Option.unwrap(List.nth(hi, sorted))
+    vlo *. (1.0 -. frac) +. vhi *. frac
+  }
+}
+
+// ─── Window statistics ────────────────────────────────────────────────────────
+
+let windowStats = (history: List<Float64>) => {
+  {
+    mean:   mean(history),
+    stddev: stddev(history),
+    p50:    percentile(history, 50.0),
+    p90:    percentile(history, 90.0),
+    p99:    percentile(history, 99.0),
+  }
+}
+
+// ─── Anomaly detection (simple z-score) ───────────────────────────────────────
+
+let anomalyScore = (history: List<Float64>, current: Float64) => {
+  let mu = mean(history)
+  let sd = stddev(history)
+  if (sd <. 1e-9) {
+    0.0
+  } else {
+    (current -. mu) /. sd
+  }
+}
+
+// ─── Pressure metric ──────────────────────────────────────────────────────────
+
+let pressureScore = (snap: Snapshot) => {
+  let memPct = if (snap.memTotalKb > 0L) {
+    Float64.fromInt(Int64.toInt(snap.memTotalKb - snap.memAvailKb))
+    /. Float64.fromInt(Int64.toInt(snap.memTotalKb)) *. 100.0
+  } else {
+    0.0
+  }
+  0.6 *. snap.cpuPct +. 0.4 *. memPct
+}
+
+// ─── Exported transform functions ─────────────────────────────────────────────
+
+export let transform = (snap: Snapshot, history: List<Float64>) => {
+  let score  = pressureScore(snap)
+  let stats  = windowStats(history)
+  let zScore = anomalyScore(history, snap.cpuPct)
+  (score, stats, zScore)
+}
+
+export let classify = (score: Float64) => {
+  if (score >=. 90.0) "crit"
+  else if (score >=. 70.0) "warn"
+  else "ok"
+}
+
+// ─── Plugin entry (called by WASM host) ───────────────────────────────────────
+
+export let process = (
+  cpu:      Float64,
+  memTotal: Int64,
+  memAvail: Int64,
+  load1:    Float64,
+  ts:       Int64,
+  history:  List<Float64>
+) => {
+  let snap   = { timestampMs: ts, cpuPct: cpu,
+                 memTotalKb: memTotal, memAvailKb: memAvail, loadOne: load1 }
+  let (score, stats, z) = transform(snap, history)
+  let sev = classify(score)
+  (sev, score, stats.p90, z)
+}
