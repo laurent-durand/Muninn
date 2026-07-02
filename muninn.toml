@@ -1,0 +1,79 @@
+# muninn.toml — Muninn configuration
+# Copy to /etc/muninn/muninn.toml or pass path as argv[1]
+
+# ─── Core ─────────────────────────────────────────────────────────────────────
+
+interval_ms    = 1000          # polling interval in milliseconds
+nats_url       = "nats://127.0.0.1:4222"
+listen_addr    = ":7777"       # HTTP/WebSocket bind address
+log_level      = "info"        # debug | info | warn | error
+history_hours  = 24            # in-memory metric retention
+
+# ─── Alert rules ──────────────────────────────────────────────────────────────
+# Each rule fires an alert when `metric` stays above `crit` (or `warn`)
+# for at least `duration` seconds.
+
+[[rule]]
+metric   = "cpu_pct"
+warn     = 70.0
+crit     = 90.0
+duration = 10
+
+[[rule]]
+metric   = "mem_used_pct"
+warn     = 80.0
+crit     = 95.0
+duration = 5
+
+[[rule]]
+metric   = "swap_pct"
+warn     = 50.0
+crit     = 80.0
+duration = 15
+
+[[rule]]
+metric   = "load_one"
+warn     = 8.0
+crit     = 16.0
+duration = 20
+
+# ─── Plugins ──────────────────────────────────────────────────────────────────
+
+[plugins]
+dirs = [
+    "/etc/muninn/plugins",
+    "~/.config/muninn/plugins",
+]
+
+# ─── Log sources ──────────────────────────────────────────────────────────────
+
+[logs]
+paths = [
+    "/var/log/syslog",
+    "/var/log/kern.log",
+]
+
+# ─── SNMP (legacy bridge, Tcl component) ─────────────────────────────────────
+
+[snmp]
+enabled   = false
+community = "public"
+version   = "2c"
+targets   = []
+# targets = ["192.168.1.1", "10.0.0.254"]
+
+# ─── TUI ──────────────────────────────────────────────────────────────────────
+
+[tui]
+refresh_ms    = 250            # TUI render interval
+sparkline_len = 60             # seconds of CPU history shown
+theme         = "dark"         # dark | light
+
+# ─── Analysis (Julia, opt-in) ─────────────────────────────────────────────────
+
+[analysis]
+enabled          = false
+report_every_sec = 30
+holt_winters_h   = 5           # forecast horizon (samples ahead)
+cusum_k          = 0.5
+cusum_h          = 5.0

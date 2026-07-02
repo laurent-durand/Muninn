@@ -1,0 +1,55 @@
+# ─── GitHub Linguist language overrides ──────────────────────────────────────
+# Forces GitHub to recognise every language in the project.
+# Without this, Linguist silently ignores anything it doesn't know by extension.
+
+# ── Compiled / systems ────────────────────────────────────────────────────────
+*.zig          linguist-language=Zig
+*.odin         linguist-language=Odin
+src/net/**     linguist-language=Rust
+src/api/**     linguist-language=Go
+*.nim          linguist-language=Nim
+*.ml           linguist-language=OCaml
+*.d            linguist-language=D
+*.cr           linguist-language=Crystal
+*.ha           linguist-language=Hare
+*.gleam        linguist-language=Gleam
+*.adb          linguist-language=Ada
+*.v            linguist-language=V
+*.chpl         linguist-language=Chapel
+*.jl           linguist-language=Julia
+*.pony         linguist-language=Pony
+
+# ── Effect / functional ───────────────────────────────────────────────────────
+*.kk           linguist-language=Koka
+*.roc          linguist-language=Roc
+*.gr           linguist-language=Grain
+*.mbt          linguist-language=MoonBit
+
+# ── Scripting / DSL ───────────────────────────────────────────────────────────
+*.janet        linguist-language=Janet
+*.fnl          linguist-language=Fennel
+*.lua          linguist-language=Lua
+*.wren         linguist-language=Wren
+*.io           linguist-language=Io
+*.fs           linguist-language=Forth
+*.elv          linguist-language=Elvish
+
+# ── Array / stack ─────────────────────────────────────────────────────────────
+*.bqn          linguist-language=BQN
+*.ua           linguist-language=Uiua
+*.factor       linguist-language=Factor
+
+# ── Logic / query ─────────────────────────────────────────────────────────────
+*.pl           linguist-language=Prolog
+
+# ── Formatting / shell ────────────────────────────────────────────────────────
+*.awk          linguist-language=AWK
+*.tcl          linguist-language=Tcl
+*.c3           linguist-language=C3
+
+# ── Proto ─────────────────────────────────────────────────────────────────────
+*.proto        linguist-language=Protocol-Buffer
+
+# ── Prevent over-counting generated / vendor files ────────────────────────────
+go.sum         linguist-generated=true
+Cargo.lock     linguist-generated=true

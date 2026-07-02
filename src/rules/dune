@@ -1,0 +1,4 @@
+(executable
+ (name     rule_engine)
+ (libraries yojson ppx_deriving.runtime)
+ (preprocess (pps ppx_deriving.show)))

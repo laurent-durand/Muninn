@@ -1,0 +1,13 @@
+name = "muninn_fanout"
+version = "0.1.0"
+description = "Muninn BEAM concurrent fan-out — Gleam on Erlang/OTP"
+licences = ["GPL-3.0-or-later"]
+repository = { type = "github", user = "laurent-durand", repo = "Muninn" }
+
+[dependencies]
+gleam_stdlib   = ">= 0.38.0 and < 2.0.0"
+gleam_otp      = ">= 0.10.0 and < 2.0.0"
+gleam_erlang   = ">= 0.25.0 and < 2.0.0"
+
+[dev-dependencies]
+gleeunit = ">= 1.0.0 and < 2.0.0"

@@ -1,0 +1,15 @@
+{
+    "name":        "muninn-stats",
+    "description": "Muninn statistical analysis — D",
+    "license":     "GPL-3.0-or-later",
+    "authors":     ["XIIIXXXIII"],
+    "targetType":  "executable",
+    "targetName":  "muninn-stats",
+    "sourcePaths": ["."],
+    "mainSourceFile": "analysis.d",
+    "buildTypes": {
+        "release": {
+            "buildOptions": ["releaseMode", "optimize", "inline"]
+        }
+    }
+}
